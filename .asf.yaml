@@ -1,0 +1,8 @@
+github:
+  description: "Apache ECharts MCP Server"
+  homepage: https://github.com/apache/echarts-mcp
+  labels:
+    - echarts
+    - mcp
+    - data-visualization
+
