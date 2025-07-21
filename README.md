@@ -12,7 +12,7 @@ Supported ECharts series types: `'bar', 'line', 'pie', 'scatter', 'funnel', 'tre
 npm install
 ```
 
-Create an `.env` file. See `.env.example` for reference.
+Create an `.env` file. See `.env.example` for reference. You need to have the access to a [baidubce/bce-sdk-js](https://github.com/baidubce/bce-sdk-js) account to store the images on the cloud.
 
 ## Run
 
@@ -51,6 +51,6 @@ To make an MCP server of Apache ECharts, there are 3 common ways to do:
 
 The advantage of Approach 1 is that is has the potential of making all kinds of charts that ECharts supports. But it may not be stable, especially for less frequently used chart types.
 
-Approach 2 gives the freedom to change chart themes from prompt. For example, you may ask the LLM to `generate a chart with red bars of data ...`. But this approach requires a lot of parameters in order to support so many ECharts options. And it degenerates to approach 1 as the number of parameters grow.
+Approach 2 gives the freedom to change chart themes from prompt. For example, you may ask the LLM to `generate a chart with red bars of data ...`. But this approach requires a lot of parameters in order to support so many ECharts options. And it degenerates to approach 1 as the number of parameters grows.
 
 Approach 3 asks LLM to provide minimal parameters like series type, data, seriesName, title, and axisName. The chart theme is defined in the app so that only the developer of this app, rather than users can change the theme. We believe this is the best way to provide stable results and so this is the approach we take in this project.
