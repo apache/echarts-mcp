@@ -5,21 +5,21 @@
     "main": "src/index.js",
     "scripts": {
         "dev": "nodemon src/index.js",
-        "inspect": "./node_modules/.bin/mcp-inspector node ./src/index.js"
+        "inspect": "mcp-inspector node ./src/index.js"
     },
-    "keywords": [],
+    "keywords": ["echarts", "mcp", "data-visualization"],
     "author": "",
-    "description": "",
+    "description": "Apache ECharts MCP Server",
     "dependencies": {
-        "@baiducloud/sdk": "^1.0.3",
-        "@modelcontextprotocol/sdk": "latest",
-        "canvas": "^3.1.0",
-        "dotenv": "^16.5.0",
-        "echarts": "^6.0.0-beta.1",
+        "@baiducloud/sdk": "^1.0.7",
+        "@modelcontextprotocol/sdk": "^1.23.0",
+        "canvas": "^3.2.0",
+        "dotenv": "^17.2.3",
+        "echarts": "^6.0.0",
         "express": "^5.1.0"
     },
     "devDependencies": {
-        "@modelcontextprotocol/inspector": "^0.8.2",
-        "nodemon": "^3.1.9"
+        "@modelcontextprotocol/inspector": "^0.17.2",
+        "nodemon": "^3.1.11"
     }
 }
