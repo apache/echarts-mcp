@@ -16,7 +16,7 @@
         "canvas": "^3.2.0",
         "dotenv": "^17.2.3",
         "echarts": "^6.0.0",
-        "express": "^5.1.0"
+        "express": "^5.2.1"
     },
     "devDependencies": {
         "@modelcontextprotocol/inspector": "^0.17.2",
