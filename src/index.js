@@ -20,9 +20,9 @@
 import express from 'express';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
-import fs from 'fs';
 
 import { getChartBase64 } from './chart.js';
 import { isTreelike, seriesTypes } from './util.js';
@@ -32,11 +32,6 @@ dotenv.config();
 
 class EChartsServer {
     constructor() {
-        // Throw an error if there is no .env file
-        if (!fs.existsSync('.env')) {
-            throw new Error('Missing .env file. Please create a .env file with your configuration. See .env.example for reference.');
-        }
-
         this.server = new Server(
             {
                 name: 'echarts',
@@ -173,38 +168,46 @@ class EChartsServer {
     }
 
     async run() {
-        const app = express();
-        const transports = {};
+        const useStdio = process.argv.includes('--stdio');
 
-        app.get('/', (_, res) => {
-            res.send('Apache ECharts MCP Server is running');
-        });
-
-        app.get('/sse', async (_, res) => {
-            const transport = new SSEServerTransport('/messages', res);
-            transports[transport.sessionId] = transport;
-            res.on('close', () => {
-                delete transports[transport.sessionId];
-            });
+        if (useStdio) {
+            const transport = new StdioServerTransport();
             await this.server.connect(transport);
-        });
+            console.error('ECharts MCP Server running on stdio');
+        } else {
+            const app = express();
+            const transports = {};
 
-        app.post('/messages', async (req, res) => {
-            const sessionId = req.query.sessionId;
-            const transport = transports[sessionId];
-            if (!transport) {
-                if (!res.headersSent) {
-                    res.status(400).send('No transport found for sessionId. Please establish SSE connection first.');
+            app.get('/', (_, res) => {
+                res.send('Apache ECharts MCP Server is running');
+            });
+
+            app.get('/sse', async (_, res) => {
+                const transport = new SSEServerTransport('/messages', res);
+                transports[transport.sessionId] = transport;
+                res.on('close', () => {
+                    delete transports[transport.sessionId];
+                });
+                await this.server.connect(transport);
+            });
+
+            app.post('/messages', async (req, res) => {
+                const sessionId = req.query.sessionId;
+                const transport = transports[sessionId];
+                if (!transport) {
+                    if (!res.headersSent) {
+                        res.status(400).send('No transport found for sessionId. Please establish SSE connection first.');
+                    }
+                    return;
                 }
-                return;
-            }
-            await transport.handlePostMessage(req, res);
-        });
+                await transport.handlePostMessage(req, res);
+            });
 
-        const port = process.env.SERVER_PORT || 8081;
-        app.listen(port, () => {
-            console.log(`Server is running on port ${port}`);
-        });
+            const port = process.env.SERVER_PORT || 8081;
+            app.listen(port, () => {
+                console.log(`Server is running on port ${port}`);
+            });
+        }
     }
 }
 

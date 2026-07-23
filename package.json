@@ -5,6 +5,7 @@
     "main": "src/index.js",
     "scripts": {
         "dev": "nodemon src/index.js",
+        "start:stdio": "node src/index.js --stdio",
         "inspect": "mcp-inspector node ./src/index.js"
     },
     "keywords": ["echarts", "mcp", "data-visualization"],
