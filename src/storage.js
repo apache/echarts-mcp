@@ -17,74 +17,113 @@
 * under the License.
 */
 
-import bos from '@baiducloud/sdk';
-import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const tmpDir = path.join(__dirname, '../tmp');
 
-// Create tmp directory if not exists
-if (!fs.existsSync(tmpDir)) {
-    fs.mkdirSync(tmpDir);
-}
-
-const config = {
-    endpoint: process.env.BOS_ENDPOINT,
-    credentials: {
-        ak: process.env.BOS_AK,
-        sk: process.env.BOS_SK,
-    },
-};
-
-const client = new bos.BosClient(config);
-const bucket = process.env.BOS_BUCKET;
-const basePath = '/upload/echarts';
+/**
+ * Storage mode: 'local' or 'cloud'
+ * Set via STORAGE_MODE env variable. Defaults to 'local'.
+ */
+const storageMode = process.env.STORAGE_MODE || 'local';
 
 export async function saveImage(base64) {
-    const fileName = getFilePrefix() + '.png';
-    const key = `${basePath}/${fileName}`;
-    const tmpPath = path.join(tmpDir, fileName);
+    if (storageMode === 'cloud') {
+        return saveImageToCloud(base64);
+    }
+    return saveImageLocally(base64);
+}
 
-    try {
-        // Remove Base64 prefix if exists
-        const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
-        // Save base64 to tmp file
-        fs.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
+// ─── Local Storage ───────────────────────────────────────────────────────────
 
-        // Upload file
-        await client.putObjectFromFile(bucket, key, tmpPath);
-        return process.env.BOS_CDN_ENDPOINT + key;
-    } catch (error) {
-        console.error('Upload failed:', error);
-        throw error;
-    } finally {
-        // Remove tmp file
-        if (fs.existsSync(tmpPath)) {
-            fs.unlinkSync(tmpPath);
-        }
+const imagesDir = path.join(__dirname, '../images');
+
+function ensureImagesDir() {
+    if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
     }
 }
 
+async function saveImageLocally(base64) {
+    ensureImagesDir();
+
+    const fileName = getFilePrefix() + '.png';
+    const filePath = path.join(imagesDir, fileName);
+
+    try {
+        const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        return filePath;
+    } catch (error) {
+        console.error('Failed to save image locally:', error);
+        throw error;
+    }
+}
+
+// ─── Cloud Storage (BaiduBCE BOS) ────────────────────────────────────────────
+
+async function saveImageToCloud(base64) {
+    const { BosClient } = await import('@baiducloud/sdk');
+
+    const bosConfig = {
+        endpoint: process.env.BOS_ENDPOINT,
+        credentials: {
+            ak: process.env.BOS_AK,
+            sk: process.env.BOS_SK,
+        },
+    };
+
+    const bucket = process.env.BOS_BUCKET || 'echarts-mcp';
+    const cdnEndpoint = process.env.BOS_CDN_ENDPOINT;
+
+    if (!bosConfig.endpoint || !bosConfig.credentials.ak || !bosConfig.credentials.sk) {
+        throw new Error(
+            'Cloud storage requires BOS_ENDPOINT, BOS_AK, and BOS_SK environment variables. ' +
+            'Set STORAGE_MODE=local to use local storage instead.'
+        );
+    }
+
+    const client = new BosClient(bosConfig);
+    const fileName = getFilePrefix() + '.png';
+    const key = `charts/${fileName}`;
+
+    try {
+        const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        await client.putObject(bucket, key, buffer, {
+            'Content-Type': 'image/png',
+        });
+
+        const url = cdnEndpoint
+            ? `${cdnEndpoint}/${key}`
+            : `${bosConfig.endpoint}/${bucket}/${key}`;
+
+        return url;
+    } catch (error) {
+        console.error('Failed to save image to cloud:', error);
+        throw error;
+    }
+}
+
+// ─── Utils ───────────────────────────────────────────────────────────────────
+
 function getFilePrefix() {
-    // Datetime + 10 random characters
     const date = new Date();
     const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    const second = date.getSeconds();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const second = String(date.getSeconds()).padStart(2, '0');
 
     const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let result = '';
     for (let i = 0; i < 10; i++) {
         result += chars[Math.floor(Math.random() * chars.length)];
     }
-    return `${year}${month}${day}${hour}${minute}${second}${result}`;
+    return `${year}${month}${day}_${hour}${minute}${second}_${result}`;
 }
