@@ -5,11 +5,13 @@
     "main": "src/index.js",
     "scripts": {
         "dev": "nodemon src/index.js",
+        "start": "node src/index.js",
+        "inspect": "mcp-inspector --server-url http://localhost:8081/mcp --transport http",
         "start:stdio": "node src/index.js --stdio",
-        "inspect": "mcp-inspector node ./src/index.js"
+        "inspect:stdio": "mcp-inspector --web node src/index.js --stdio"
     },
     "keywords": ["echarts", "mcp", "data-visualization"],
-    "author": "",
+    "author": "Apache ECharts Team",
     "description": "Apache ECharts MCP Server",
     "dependencies": {
         "@baiducloud/sdk": "^1.0.7",

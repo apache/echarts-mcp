@@ -18,12 +18,12 @@
 */
 
 import express from 'express';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import dotenv from 'dotenv';
-
 import { getChartBase64 } from './chart.js';
 import { isTreelike, seriesTypes } from './util.js';
 import { saveImage } from './storage.js';
@@ -32,7 +32,7 @@ dotenv.config();
 
 class EChartsServer {
     constructor() {
-        this.server = new Server(
+        this.mcpServer = new McpServer(
             {
                 name: 'echarts',
                 version: '1.0.0',
@@ -46,7 +46,7 @@ class EChartsServer {
 
         this.setupToolHandlers();
 
-        this.server.onerror = (error) => console.error('[MCP Error]', error);
+        this.mcpServer.server.onerror = (error) => console.error('[MCP Error]', error);
     }
 
     validateChartType(type) {
@@ -86,53 +86,40 @@ class EChartsServer {
     }
 
     setupToolHandlers() {
-        this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-            tools: [
-                {
-                    name: 'get-chart',
-                    description: 'Generate an ECharts chart',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            title: {
-                                type: 'string',
-                                description: 'Chart title',
-                            },
-                            type: {
-                                type: 'string',
-                                description: `Chart type (${seriesTypes.join(', ')})`,
-                            },
-                            seriesName: {
-                                type: 'string',
-                                description: 'Series name that will be displayed in the legend',
-                            },
-                            data: {
-                                type: 'array',
-                                description:
-                                    'Chart data array. For example: [["A", 100], ["B", 200], ["C", 300]] for bar/line/pie/scatter charts, or [{ "name": "A", "value": 100, "children": [{ "name": "A1", "value": 40}, { "name": "A2", "value": 60}]}] for tree charts',
-                            },
-                            xAxisName: {
-                                type: 'string',
-                                description:
-                                    'Name of the first dimension (data[0]) including unit, for bar/line/scatter/pie charts. For example, when data is [["Apple", 100], ["Banana", 200], ["Cherry", 300]], xAxisName should be "Fruit".',
-                            },
-                            yAxisName: {
-                                type: 'string',
-                                description:
-                                    'Name of the second dimension (data[1]) including unit, for bar/line/scatter/pie charts. For example, when data is [["Apple", 100], ["Banana", 200], ["Cherry", 300]], yAxisName should be "Sales (USD)".',
-                            },
-                        },
-                        required: ['type', 'data', 'title', 'seriesName'],
-                    },
-                },
-            ],
-        }));
-
-        this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-            if (request.params.name === 'get-chart') {
+        this.mcpServer.registerTool(
+            'get-chart',
+            {
+                description: 'Generate an ECharts chart',
+                inputSchema: z.object({
+                    title: z.string()
+                        .describe('Chart title'),
+                    type: z.string()
+                        .describe(`Chart type (${seriesTypes.join(', ')})`),
+                    seriesName: z.string()
+                        .describe('Series name that will be displayed in the legend'),
+                    data: z.array(
+                            z.union([
+                                z.record(z.any()),
+                                z.array(z.any())
+                            ])
+                        )
+                        .describe(
+                            'Chart data array. For example: [["A", 100], ["B", 200], ["C", 300]] for bar/line/pie/scatter charts, or [{ "name": "A", "value": 100, "children": [{ "name": "A1", "value": 40}, { "name": "A2", "value": 60}]}] for tree charts'
+                        ),
+                    xAxisName: z.string()
+                        .optional()
+                        .describe(
+                            'Name of the first dimension (data) including unit, for bar/line/scatter/pie charts. For example, when data is [["Apple", 100], ["Banana", 200], ["Cherry", 300]], xAxisName should be "Fruit".'
+                        ),
+                    yAxisName: z.string()
+                        .optional()
+                        .describe(
+                            'Name of the second dimension (data) including unit, for bar/line/scatter/pie charts. For example, when data is [["Apple", 100], ["Banana", 200], ["Cherry", 300]], yAxisName should be "Sales (USD)".'
+                        ),
+                }),
+            },
+            async ({ type, data, title, seriesName, xAxisName, yAxisName }) => {
                 try {
-                    const { type, data, title, seriesName, xAxisName, yAxisName } = request.params.arguments;
-
                     this.validateChartType(type);
                     this.validateChartData(data, type);
 
@@ -163,8 +150,7 @@ class EChartsServer {
                     );
                 }
             }
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
-        });
+        );
     }
 
     async run() {
@@ -172,40 +158,26 @@ class EChartsServer {
 
         if (useStdio) {
             const transport = new StdioServerTransport();
-            await this.server.connect(transport);
-            console.error('ECharts MCP Server running on stdio');
+            await this.mcpServer.connect(transport);
+            console.log('ECharts MCP Server running on stdio');
         } else {
             const app = express();
-            const transports = {};
+            app.use(express.json());
 
             app.get('/', (_, res) => {
-                res.send('Apache ECharts MCP Server is running');
+                res.send('Apache ECharts MCP Server (Streamable HTTP) is running');
             });
 
-            app.get('/sse', async (_, res) => {
-                const transport = new SSEServerTransport('/messages', res);
-                transports[transport.sessionId] = transport;
-                res.on('close', () => {
-                    delete transports[transport.sessionId];
-                });
-                await this.server.connect(transport);
-            });
-
-            app.post('/messages', async (req, res) => {
-                const sessionId = req.query.sessionId;
-                const transport = transports[sessionId];
-                if (!transport) {
-                    if (!res.headersSent) {
-                        res.status(400).send('No transport found for sessionId. Please establish SSE connection first.');
-                    }
-                    return;
-                }
-                await transport.handlePostMessage(req, res);
+            app.post('/mcp', async (req, res) => {
+                const transport = new StreamableHTTPServerTransport();
+                res.on('close', () => transport.close());
+                await this.mcpServer.connect(transport);
+                await transport.handleRequest(req, res, req.body);
             });
 
             const port = process.env.SERVER_PORT || 8081;
             app.listen(port, () => {
-                console.log(`Server is running on port ${port}`);
+                console.log(`Apache ECharts MCP Server (Streamable HTTP) is running on port:`, port);
             });
         }
     }

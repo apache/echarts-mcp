@@ -25,10 +25,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Storage mode: 'local' or 'cloud'
- * Set via STORAGE_MODE env variable. Defaults to 'local'.
+ * Storage mode: `'local'` or `'cloud'`
+ * Set via `STORAGE_MODE` env variable. Defaults to `'local'`.
  */
 const storageMode = process.env.STORAGE_MODE || 'local';
+/**
+ * Local storage directory
+ * Set via `STORAGE_LOCAL_DIR` env variable. Defaults to `'tmp'`.
+ */
+const storageLocalDir = process.env.STORAGE_LOCAL_DIR || 'tmp';
 
 export async function saveImage(base64) {
     if (storageMode === 'cloud') {
@@ -39,7 +44,11 @@ export async function saveImage(base64) {
 
 // ─── Local Storage ───────────────────────────────────────────────────────────
 
-const imagesDir = path.join(__dirname, '../images');
+const imagesDir = path.isAbsolute(storageLocalDir)
+    ? storageLocalDir
+    : path.join(__dirname, '../', storageLocalDir);
+
+storageMode === 'local' && console.log('Images will be stored to:', imagesDir)
 
 function ensureImagesDir() {
     if (!fs.existsSync(imagesDir)) {
