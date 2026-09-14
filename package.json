@@ -14,13 +14,13 @@
     "dependencies": {
         "@baiducloud/sdk": "^1.0.7",
         "@modelcontextprotocol/sdk": "^1.30.0",
-        "canvas": "^3.2.0",
-        "dotenv": "^17.2.3",
+        "canvas": "^3.2.3",
+        "dotenv": "^17.4.2",
         "echarts": "^6.1.0",
         "express": "^5.2.1"
     },
     "devDependencies": {
-        "@modelcontextprotocol/inspector": "^2.0.0",
+        "@modelcontextprotocol/inspector": "^2.6.0",
         "nodemon": "^3.1.14"
     }
 }
