@@ -22,7 +22,7 @@
         "express": "^5.2.1"
     },
     "devDependencies": {
-        "@modelcontextprotocol/inspector": "^2.6.0",
+        "@modelcontextprotocol/inspector": "^2.9.0",
         "nodemon": "^3.1.14"
     }
 }
